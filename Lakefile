@@ -1,0 +1,16 @@
+#|-*- mode:lisp -*-|#
+(in-package :cl-user)
+(defpackage :lake.user
+  (:use :cl :lake :cl-syntax)
+  (:shadowing-import-from :lake
+                          :directory))
+(in-package :lake.user)
+
+(use-syntax :interpol)
+ ;;; here follow your tasks...
+(task "test" ()
+      (ql:quickload '(:prove :dexador :clss :plump :cl-json)
+                    'silent t)
+      (load #P"NicoVideoAnalyze.asd")
+      (load #P"NicoVideoAnalyze-test.asd")
+      (asdf:test-system :NicoVideoAnalyze-test))
