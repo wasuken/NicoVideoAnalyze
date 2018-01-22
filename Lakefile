@@ -8,10 +8,26 @@
 (in-package :lake.user)
 
 (use-syntax :interpol)
+
  ;;; here follow your tasks...
 (task "test" ()
-      (ql:quickload '(:prove :dexador :cl-json)
+      (sh "rm -fr nico.sqlite3")
+      (sh "touch nico.sqlite3")
+      (sh "sqlite3 nico.sqlite3 < create.sql")
+      (ql:quickload '(:prove :dexador :cl-json :cl-dbi)
                     'silent t)
       (load #P"NicoVideoAnalyze.asd")
       (load #P"NicoVideoAnalyze-test.asd")
       (asdf:test-system :NicoVideoAnalyze-test))
+
+(task "clean" ()
+      (sh "rm -fr nico.sqlite3")
+      (sh "touch nico.sqlite3")
+      (sh "sqlite3 nico.sqlite3 < create.sql"))
+
+(task "run" ()
+      (ql:quickload '(:prove :dexador :cl-json :cl-dbi)
+                    'silent t)
+      (load #P"NicoVideoAnalyze.asd")
+      (load #P"run-main.asd")
+      (asdf:load-system :run-main))
