@@ -1,3 +1,4 @@
+
 #|-*- mode:lisp -*-|#
 (in-package :cl-user)
 (defpackage :lake.user
@@ -9,7 +10,7 @@
 (use-syntax :interpol)
  ;;; here follow your tasks...
 (task "test" ()
-      (ql:quickload '(:prove :dexador :clss :plump :cl-json)
+      (ql:quickload '(:prove :dexador :cl-json)
                     'silent t)
       (load #P"NicoVideoAnalyze.asd")
       (load #P"NicoVideoAnalyze-test.asd")

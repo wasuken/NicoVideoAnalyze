@@ -1,5 +1,5 @@
 ;; (in-package :cl-user)
 (defpackage NicoVideoAnalyze
-  (:use :cl :clss)
+  (:use :cl)
   (:shadowing-import-from :dexador :get)
   (:export nico-json))
