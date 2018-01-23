@@ -2,5 +2,5 @@
 (defpackage NicoVideoAnalyze
   (:use :cl)
   (:shadowing-import-from :dexador :get)
-  (:export :nico-json :nico-insert :insert-nico-video-item
+  (:export :make-nico-json :nico-insert :insert-nico-video-item
            :main-loop))
