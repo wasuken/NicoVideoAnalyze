@@ -9,25 +9,31 @@
 
 (use-syntax :interpol)
 
+;;; 今はまだ少ないけど後々使えそうなので
+(defvar *default-load-package-names* '(:prove :dexador :cl-json :cl-dbi :quri))
+
  ;;; here follow your tasks...
 (task "test" ()
-      (sh "rm -fr nico.sqlite3")
-      (sh "touch nico.sqlite3")
-      (sh "sqlite3 nico.sqlite3 < create.sql")
-      (ql:quickload '(:prove :dexador :cl-json :cl-dbi)
-                    'silent t)
+      ;; 関数呼び出しとコストがどれだけ違うのかわからないけど目に見えてひどくないならこのままで良い
+      ;; (sh "lake setup")
+      (ql:quickload *default-load-package-names* 'silent t)
       (load #P"NicoVideoAnalyze.asd")
       (load #P"NicoVideoAnalyze-test.asd")
       (asdf:test-system :NicoVideoAnalyze-test))
 
-(task "clean" ()
-      (sh "rm -fr nico.sqlite3")
-      (sh "touch nico.sqlite3")
-      (sh "sqlite3 nico.sqlite3 < create.sql"))
+;;; 最低限
+;;; 念の為デフォルトはテストDBにしとこ
+(task ("clean" (db-name "nico_test")) ()
+      (let ((db-full-name
+             (concatenate 'string db-name ".sqlite3")))
+        (sh  #?"rm -fr ${db-full-name}")
+        (sh  #?"touch ${db-full-name}")
+        (sh  #?"sqlite3 ${db-full-name} < create.sql")))
 
+;;; ここからmain-loop呼び出せる方法ないのだろうか
+;;; 見つからなかったので専用ファイルをわざわざ作るなどした
 (task "run" ()
-      (ql:quickload '(:prove :dexador :cl-json :cl-dbi)
-                    'silent t)
+      (ql:quickload *default-load-package-names* 'silent t)
       (load #P"NicoVideoAnalyze.asd")
       (load #P"run-main.asd")
       (asdf:load-system :run-main))

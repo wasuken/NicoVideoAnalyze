@@ -2,9 +2,6 @@
 ;;; 情報を取るタイミング
 (defvar *nico-get-idle-time* (* 60 60))
 
-;;;当分の間使うやつ。
-(defvar *nico-sample-q* "voiceroid%E5%AE%9F%E6%B3%81%E3%83%97%E3%83%AC%E3%82%A4Part1%E3%83%AA%E3%83%B3%E3%82%AF")
-
 ;;; 基礎URI
 ;;; これ固定で当分やっていき
 (defvar *nico-base-uri-format*
@@ -14,59 +11,63 @@
 (defvar *nico-uri-parameter*
   "targets=title,tags,tagsExact&_sort=-lastCommentTime&_context=apiguide&fields=title,contentId,viewCounter,mylistCounter&_limit=100")
 
-;;; データベースとして利用する
-(defvar *nico-video-item* '())
-
-;;; URI生成はこの関数で出すことにしよう。そう仕様。
+;;; URI生成はこの関数で出すことにする。
 (defun getURI (query)
-  (format nil *nico-base-uri-format* query *nico-uri-parameter*))
+  (format nil *nico-base-uri-format*
+          query *nico-uri-parameter*))
 
-;;; 外部からWebページを拾ってくる
+;;; 外部からWebページを拾ってくる。
 ;;; JSONテキストをリスト化する。
-;;; 拾ってきたJSONをParseする
-;;; これは・・・根(をおろしすぎてる分割されてないクソコード)じゃな・・・？
-(defun nico-json ()
+;;; 拾ってきたJSONをParseする。
+(defun make-nico-json (query)
   (json:decode-json-from-string
-   (dex:get (getURI *nico-sample-q*))))
+   (dex:get (getURI query))))
 
-;;; 日付出力関数
-;;; どこでも使いそう
-;;; 使ってない変数あるので警告でてるな
-(defun get-date-string (&optional (fmt "~d/~0d/~0d ~0d:~d"))
-  (multiple-value-bind
-        (second minute hour date month year day daylight-p zone)
-      (decode-universal-time (get-universal-time))
-    (format nil fmt year month date hour minute)))
-
-(defun proc-nico-item (item)
-  (let ((lst '()))
-    (loop for node in item
-         do (setf lst ()))))
-
-;;; 
-(defun main-loop (&optional (db-name "./nico.sqlite3") (get-times 24))
+(defun main-loop (&optional
+                    (db-name "./nico.sqlite3")
+                    (get-times 24)      ;24時間分とったら一旦止めとく。
+                    (search-query "VOICEROID実況プレイPart1リンク")) ;kusa
   (loop repeat get-times
      do (let* ((nico-item-list
                 (mapcar #'(lambda (x) (mapcar #'cdr x))
-                        (cdadr (nico-json)))))
+                        (cdadr (make-nico-json
+                                (quri:url-encode search-query))))))
           (mapcar #'nico-insert nico-item-list
                   (loop repeat 100 collect db-name))
           (sleep *nico-get-idle-time*))))
-
-
-;;; 上を下に変換する
-;; (:DATE "2018/1/22 20:21"
-;;; (:TITLE . "【PS4版BF1】ゆっくり逝きたいBF1 Part1【ゆっくり+紲星あかり実況】"
-;;   (:CONTENT-ID . "sm32623880") (:VIEW-COUNTER . 96) (:MYLIST-COUNTER . 5)))
-;;; ("【PS4版BF1】ゆっくり逝きたいBF1 Part1【ゆっくり+紲星あかり実況】" "sm32623880" 96 5)
-;;; 悲しいけどこれが限界なのよね
-
-
 
 ;;;;;;; ここからデータベース処理
 
 ;;; database path
 (defvar *db-path* "../nico.sqlite3")
+
+;;; 一度でも取得した動画の情報
+(defun nico-video-items (db-name)
+  (dbi:with-connection (conn :sqlite3 :database-name db-name)
+    (let* ((query (dbi:prepare conn "SELECT * FROM nico_video_item order by title"))
+           ;; こんなアホなことするくらいならデータ構造変えたほうがよくね・・・？
+           ;; かえることはできませんでした。現実は非常である。
+           (result (dbi:execute query))
+           (rows '()))
+      ;; 存在しなかったらnilのまま
+      (loop for row = (dbi:fetch result)
+         while row
+         do (setf rows (cons row rows)))
+      rows)))
+
+;;; joinしたレコード
+(defun nico-video-detail-items (db-name)
+  (dbi:with-connection (conn :sqlite3 :database-name db-name)
+    (let* ((query (dbi:prepare conn "SELECT * FROM nico_video_item as ni join nico_video_detail as nd on ni.content_id = nd.content_id order by title"))
+           ;; こんなアホなことするくらいならデータ構造変えたほうがよくね・・・？
+           ;; かえることはできませんでした。現実は非常である。
+           (result (dbi:execute query))
+           (rows '()))
+      ;; 存在しなかったらnilのまま
+      (loop for row = (dbi:fetch result)
+         while row
+         do (setf rows (cons row rows)))
+      rows)))
 
 ;;; 挿入
 ;;; 前DB系書いた時マクロつくって楽しようとしたらクッソ時間かかったから
