@@ -1,4 +1,3 @@
-
 #|-*- mode:lisp -*-|#
 (in-package :cl-user)
 (defpackage :lake.user
