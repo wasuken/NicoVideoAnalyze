@@ -1,4 +1,40 @@
 (in-package #:NicoVideoAnalyze)
+
+;;; database path
+(defvar *db-path* "../nico.sqlite3")
+
+;;; slack
+(defun read-file-to-list (filepath)
+  (let ((lines '()))
+    (with-open-file (in filepath)
+      (loop for line = (read-line in nil)
+         while line
+         do (setf lines (append lines (list line)))))
+    lines))
+;;; ahokusa
+(defun read-file-to-first-line (filepath)
+  (car (read-file-to-list filepath)))
+
+(defvar *payload-template* "{
+   \"text\":\"~a\"
+}")
+
+(defun post (text &optional (hook-url (read-file-to-first-line "../hook-url-text")))
+  (dex:post hook-url
+            :content `(("payload" . ,(format nil *payload-template* text)))))
+
+;;; 本日の日付をyyyy-MM-dd文字列でかえす
+(defun get-format-date (&optional (later-day 0))
+  (multiple-value-bind (sec min hour day mon year)
+      (decode-universal-time (- (get-universal-time)
+                                (* 60 60 24 later-day)))
+    (format nil "~D-~2,'0D-~2,'0D ~2,'0D:~2,'0D:~2,'0D" year mon day hour min sec)))
+
+(defun make-nico-aggregate-text (db-name)
+  (reduce #'(lambda (x y) (concatenate 'string x y))
+          (mapcar #'make-post-text
+                  (nico-video-aggr db-name))))
+
 ;;; 情報を取るタイミング
 (defvar *nico-get-idle-time* (* 60 60))
 
@@ -7,6 +43,12 @@
   (if (or (zerop n) (null lst))
       nil
       (cons (car lst) (take (cdr lst) (1- n)))))
+
+(defun make-post-text (lst)
+  (let ((content-id (getf lst (intern "content_id" :keyword)))
+        (title (getf lst (intern "title" :keyword)))
+        (aggr (getf lst (intern "aggr" :keyword))))
+    (format nil "url: http://www.nicovideo.jp/watch/~A~%title:~A~%一週間の集計結果:~A~%" content-id title aggr)))
 
 ;;; 基礎URI
 ;;; これ固定で当分やっていき
@@ -32,21 +74,22 @@
 (defun main-loop (&optional
                     (db-name "./nico.sqlite3")
                     (get-times 24)      ;24時間分とったら一旦止めとく。
-                    (search-query "VOICEROID実況プレイPart1リンク")) ;kusa
+                    (search-query "VOICEROID実況プレイPart1リンク") ;kusa
+                    (send-slackp nil))
   (loop repeat get-times
      do (let* ((nico-item-list
                 (mapcar #'(lambda (x) (mapcar #'cdr x))
                         (cdadr (make-nico-json
-                                (quri:url-encode search-query))))))
+                                (quri:url-encode search-query)))))
+
+               (counter 0))
           (mapcar #'nico-insert nico-item-list
                   (loop repeat 100 collect db-name))
-          (sleep *nico-get-idle-time*))))
+          (sleep *nico-get-idle-time*)
+          (setf counter (1+ counter))
+          (if (mod counter 3) (post (make-nico-aggregate-text db-name))))))
 
 ;;;;;;; ここからデータベース処理
-
-;;; database path
-(defvar *db-path* "../nico.sqlite3")
-
 
 ;;; selectの抽象化
 (defun something-select-records (db-name select)
@@ -68,8 +111,19 @@
 (defun nico-video-detail-items (db-name)
   (something-select-records db-name "SELECT * FROM nico_video_item as ni join nico_video_detail as nd on ni.content_id = nd.content_id order by title;"))
 ;;; はいくそー
-(defun nico-video-aggr (db-name)
-  (something-select-records db-name "SELECT ni.content_id,title,count(*) as aggr FROM nico_video_item as ni join nico_video_detail as nd on ni.content_id = nd.content_id group by ni.content_id order by aggr;"))
+(defun nico-video-aggr (db-name &optional
+                                  (after-date (get-format-date 7))
+                                  (rec-cnt 10))
+  (something-select-records db-name
+                            (format nil "SELECT ni.content_id,title,insert_date,count(*) as aggr
+ FROM nico_video_item as ni
+ join nico_video_detail as nd on ni.content_id = nd.content_id
+ where datetime('~A','localtime') < datetime(insert_date,'localtime')
+ group by ni.content_id
+ order by aggr limit ~A;" after-date rec-cnt))) ;koreha ikenai...
+
+;; (defun nico-video-aggr (db-name)
+;;   (something-select-records db-name "SELECT ni.content_id,title,count(*) as aggr FROM nico_video_item as ni join nico_video_detail as nd on ni.content_id = nd.content_id group by ni.content_id order by aggr;"))
 
 ;;; 挿入
 ;;; 前DB系書いた時マクロつくって楽しようとしたらクッソ時間かかったから
