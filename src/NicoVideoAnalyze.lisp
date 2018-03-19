@@ -114,13 +114,13 @@
 (defun nico-video-aggr (db-name &optional
                                   (after-date (get-format-date 7))
                                   (rec-cnt 10))
-  (something-select-records db-name
+  (reverse (something-select-records db-name
                             (format nil "SELECT ni.content_id,title,insert_date,count(*) as aggr
  FROM nico_video_item as ni
  join nico_video_detail as nd on ni.content_id = nd.content_id
  where datetime('~A','localtime') < datetime(insert_date,'localtime')
  group by ni.content_id
- order by aggr limit ~A;" after-date rec-cnt))) ;koreha ikenai...
+ order by aggr desc limit ~A;" after-date rec-cnt))))     ; ikenai...
 
 ;; (defun nico-video-aggr (db-name)
 ;;   (something-select-records db-name "SELECT ni.content_id,title,count(*) as aggr FROM nico_video_item as ni join nico_video_detail as nd on ni.content_id = nd.content_id group by ni.content_id order by aggr;"))
